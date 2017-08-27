@@ -11,7 +11,7 @@ Parameters:
   DatabaseName:
     Type: String
     Default: "ghost"
-    Description: "Name of the databae"
+    Description: "Name of the database"
 
 Resources:
   DBCluster:
