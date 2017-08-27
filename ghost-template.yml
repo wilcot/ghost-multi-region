@@ -1,0 +1,35 @@
+Parameters:
+  DBMasterUsername:
+    Type: String
+    Default: ghostadmin
+    Description: Master username for the RDS Instance
+  DBMasterPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+  DatabaseName:
+    Type: String
+    Default: "ghost"
+    Description: "Name of the databae"
+
+Resources:
+  DBCluster:
+    Type: "AWS::RDS::DBCluster"
+    Properties:
+      Engine: aurora
+      DatabaseName: 
+        Ref: DatabaseName
+      MasterUsername:
+        Ref: DBMasterUsername
+      MasterUserPassword: 
+        Ref: DBMasterPassword
+  Database:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora
+      DBInstanceIdentifier: ghost
+      DBInstanceClass: db.t2.small
+      DBClusterIdentifier: 
+        Ref: DBCluster
+
