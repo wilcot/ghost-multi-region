@@ -12,6 +12,17 @@ Parameters:
     Type: String
     Default: "ghost"
     Description: "Name of the database"
+  EC2AmiId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-cd0f5cb6
+    Description: "Amazon Machine Image ID"
+  EC2InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: "Instance type for Ghost blog"
+  KeyPair: 
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Key Pair used for web server
 
 Resources:
   DBCluster:
@@ -24,6 +35,10 @@ Resources:
         Ref: DBMasterUsername
       MasterUserPassword: 
         Ref: DBMasterPassword
+      VpcSecurityGroupIds:
+        -
+          !GetAtt RDSSecurityGroup.GroupId
+
   Database:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -33,3 +48,58 @@ Resources:
       DBClusterIdentifier: 
         Ref: DBCluster
 
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MaxSize: 1
+      MinSize: 1
+      LaunchConfigurationName:
+        Ref: LaunchConfiguration
+      AvailabilityZones:
+        -
+          us-east-1a
+
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId:
+        Ref: EC2AmiId
+      InstanceType:
+        Ref: EC2InstanceType
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          sudo apt-get update
+          sudo apt-get -y upgrade
+          sudo apt-get -y install nginx
+          sudo ufw allow 'Nginx Full'
+          curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash
+          sudo apt-get install -y nodejs
+          sudo npm i -g ghost-cli
+          sudo mkdir -p /var/www/ghost
+          sudo chown ubuntu:ubuntu /var/www/ghost
+          cd /var/www/ghost
+          INSTANCE_PUBLIC_URL=$(curl http://169.254.169.254/latest/meta-data/public-hostname)
+          ghost install --no-prompt --url "http://$INSTANCE_PUBLIC_URL" --dbhost RDS-URL --dbuser ghostadmin --dbpass RDS-PASSWORD
+      KeyName:
+        Ref: KeyPair
+  WebServerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: Security group for Ghost Web Server
+      SecurityGroupIngress: 
+        - 
+          IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for Ghost RDS instance"
+      SecurityGroupIngress: 
+        -
+          IpProtocol: "tcp"
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
