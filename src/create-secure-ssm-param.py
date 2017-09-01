@@ -1,5 +1,8 @@
+# to do:
+# function to handle cfnresponse
+# decide if an rds parameter should be overwritten (or be given a unique name?)
 import boto3
-#import cfnresponse
+import cfnresponse
 ssm = boto3.client('ssm')
 def create_ssm_secure_parameter(Name,Description,Value):
     try:
@@ -22,11 +25,16 @@ def delete_ssm_parameter(Name):
         if 'ParameterNotFound' in str(e):
             print(f"called delete_parameter for \"{Name}\", but the ssm parameter does not exist")
         else:
-            raise Exception(f"unable to delete parameter \"{Name}\". error:" + str(e)) 
-
+            raise Exception(f"unable to delete parameter \"{Name}\". error:" + str(e))
+            
 def lambda_handler(event, context):
-    if event['request'] == 'delete':
-        delete_ssm_parameter(event['name'])
-    else:
-        create_ssm_secure_parameter(event['name'],event['description'],event['value'])
-        
+    print(f"received event: {event}")
+    params = event['ResourceProperties']
+    try:
+        if event['RequestType'] == 'Delete':
+            delete_ssm_parameter(params['Name'])
+        else:
+            create_ssm_secure_parameter(params['Name'],params['Description'],params['Value'])
+        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+    except Exception as e:
+        cfnresponse.send(event, context, cfnresponse.FAILED, {}) 

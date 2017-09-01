@@ -103,7 +103,7 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           SourceSecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
-  SSMSecureParameter:
+  SSMSecureParameterLambda:
     Type: "AWS::Lambda::Function"
     Properties: 
       Code:
@@ -132,17 +132,30 @@ Resources:
                   if 'ParameterNotFound' in str(e):
                       print(f"called delete_parameter for \"{Name}\", but the ssm parameter does not exist")
                   else:
-                      raise Exception(f"unable to delete parameter \"{Name}\". error:" + str(e)) 
-
+                      raise Exception(f"unable to delete parameter \"{Name}\". error:" + str(e))
+                      
           def lambda_handler(event, context):
-              if event['request'] == 'delete':
-                  delete_ssm_parameter(event['name'])
-              else:
-                  create_ssm_secure_parameter(event['name'],event['description'],event['value'])
+              print(f"received event: {event}")
+              params = event['ResourceProperties']
+              try:
+                  if event['RequestType'] == 'Delete':
+                      delete_ssm_parameter(params['Name'])
+                  else:
+                      create_ssm_secure_parameter(params['Name'],params['Description'],params['Value'])
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+              except Exception as e:
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {}) 
       Description: "Custom cfn-resource to manage secure ssm parameters"
       Handler: index.lambda_handler
       Role: arn:aws:iam::362142250279:role/lambda_test
       Runtime: python3.6
       Timeout: 20
+  RdsPasswordSsmParameter:
+    Type: "Custom::RdsPassword"
+    Properties:
+      ServiceToken: !GetAtt SSMSecureParameterLambda.Arn
+      Name: RdsPassword
+      Description: "The password for ghost blog database instance"
+      Value: !Ref DBMasterPassword
 
 
