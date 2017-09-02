@@ -1,10 +1,22 @@
 # to do:
 # function to handle cfnresponse
-# decide if an rds parameter should be overwritten (or be given a unique name?)
 import boto3
 import cfnresponse
 ssm = boto3.client('ssm')
 def create_ssm_secure_parameter(Name,Description,Value):
+    try:
+        ssm.put_parameter(
+                Name=Name,
+                Description=Description,
+                Value=Value,
+                Type='SecureString',
+                Overwrite=False
+            )
+        print(f"created secure ssm parameter: \"{Name}\"")
+    except Exception as e:
+        raise Exception(f"unable to create parameter: \"{Name}\". error:" + str(e))
+
+def update_ssm_secure_parameter(Name,Description,Value):
     try:
         ssm.put_parameter(
                 Name=Name,
@@ -30,11 +42,21 @@ def delete_ssm_parameter(Name):
 def lambda_handler(event, context):
     print(f"received event: {event}")
     params = event['ResourceProperties']
+
+    def send_cfn_response(isSuccess, response):
+        status = cfnresponse.SUCCESS if isSuccess else cfnresponse.FAILED
+        responseToSend = repsonse if response else {}
+        cfnresponse.send(event, context, status, responseToSend)
+
     try:
         if event['RequestType'] == 'Delete':
             delete_ssm_parameter(params['Name'])
-        else:
+        elif event['RequestType'] == 'Create':
             create_ssm_secure_parameter(params['Name'],params['Description'],params['Value'])
-        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+        elif event['RequestType'] == 'Update':
+            update_ssm_secure_parameter(params['Name'],params['Description'],params['Value'])
+        else:
+            raise Exception(f"No valid RequestType. Must pass RequestType: Create, Update, Delete")
+        send_cfn_response(True,{})
     except Exception as e:
-        cfnresponse.send(event, context, cfnresponse.FAILED, {}) 
+        send_cfn_response(False,{})

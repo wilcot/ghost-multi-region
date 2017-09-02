@@ -50,6 +50,14 @@ Resources:
 
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - Database
+      - RdsPasswordSsmParameter
+      - RdsEndpointSsmParameter
+      - RdsUsernameSsmParameter
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: 'true'
     Properties:
       MaxSize: 1
       MinSize: 1
@@ -72,6 +80,11 @@ Resources:
           sudo apt-get update
           sudo apt-get -y upgrade
           sudo apt-get -y install nginx
+          sudo apt-get -y install unzip
+          sudo apt-get -y install python
+          curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip"
+          unzip awscli-bundle.zip
+          sudo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
           sudo ufw allow 'Nginx Full'
           curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash
           sudo apt-get install -y nodejs
@@ -80,9 +93,13 @@ Resources:
           sudo chown ubuntu:ubuntu /var/www/ghost
           cd /var/www/ghost
           INSTANCE_PUBLIC_URL=$(curl http://169.254.169.254/latest/meta-data/public-hostname)
-          ghost install --no-prompt --url "http://$INSTANCE_PUBLIC_URL" --dbhost RDS-URL --dbuser ghostadmin --dbpass RDS-PASSWORD
+          RDS_CLUSTER_ENDPOINT=$(aws ssm get-parameters --name GhostRdsEndpoint | jq -r '.Parameters[0].Value')
+          RDS_CLUSTER_USERNAME=$(aws ssm get-parameters --name GhostRdsUserName | jq -r '.Parameters[0].Value')
+          RDS_CLUSTER_PASSWORD=$(aws ssm get-parameters --name GhostRdsPassword --with-decryption | jq -r '.Parameters[0].Value')GhostRdsPassword
+          ghost install --no-prompt --url "http://$INSTANCE_PUBLIC_URL" --dbhost RDS_CLUSTER_ENDPOINT --dbuser RDS_CLUSTER_USERNAME --dbpass RDS_CLUSTER_PASSWORD
       KeyName:
         Ref: KeyPair
+      IamInstanceProfile: ec2-role-full-access
   WebServerSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
@@ -107,11 +124,24 @@ Resources:
     Type: "AWS::Lambda::Function"
     Properties: 
       Code:
-        ZipFile: | 
+        ZipFile: |
           import boto3
           import cfnresponse
           ssm = boto3.client('ssm')
           def create_ssm_secure_parameter(Name,Description,Value):
+              try:
+                  ssm.put_parameter(
+                          Name=Name,
+                          Description=Description,
+                          Value=Value,
+                          Type='SecureString',
+                          Overwrite=False
+                      )
+                  print(f"created secure ssm parameter: \"{Name}\"")
+              except Exception as e:
+                  raise Exception(f"unable to create parameter: \"{Name}\". error:" + str(e))
+
+          def update_ssm_secure_parameter(Name,Description,Value):
               try:
                   ssm.put_parameter(
                           Name=Name,
@@ -137,14 +167,24 @@ Resources:
           def lambda_handler(event, context):
               print(f"received event: {event}")
               params = event['ResourceProperties']
+
+              def send_cfn_response(isSuccess, response):
+                  status = cfnresponse.SUCCESS if isSuccess else cfnresponse.FAILED
+                  responseToSend = repsonse if response else {}
+                  cfnresponse.send(event, context, status, responseToSend)
+
               try:
                   if event['RequestType'] == 'Delete':
                       delete_ssm_parameter(params['Name'])
-                  else:
+                  elif event['RequestType'] == 'Create':
                       create_ssm_secure_parameter(params['Name'],params['Description'],params['Value'])
-                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                  elif event['RequestType'] == 'Update':
+                      update_ssm_secure_parameter(params['Name'],params['Description'],params['Value'])
+                  else:
+                      raise Exception(f"No valid RequestType. Must pass RequestType: Create, Update, Delete")
+                  send_cfn_response(True,{})
               except Exception as e:
-                  cfnresponse.send(event, context, cfnresponse.FAILED, {}) 
+                  send_cfn_response(False,{})
       Description: "Custom cfn-resource to manage secure ssm parameters"
       Handler: index.lambda_handler
       Role: arn:aws:iam::362142250279:role/lambda_test
@@ -154,8 +194,23 @@ Resources:
     Type: "Custom::RdsPassword"
     Properties:
       ServiceToken: !GetAtt SSMSecureParameterLambda.Arn
-      Name: RdsPassword
+      Name: GhostRdsPassword
       Description: "The password for ghost blog database instance"
       Value: !Ref DBMasterPassword
+  RdsUsernameSsmParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties: 
+      Name: GhostRdsUserName
+      Description: "The useranme for the ghost blog database instance"
+      Type: String
+      Value: !Ref DBMasterUsername
+  RdsEndpointSsmParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties: 
+      Name: GhostRdsEndpoint
+      Description: "The connection string for the ghost blog database instance"
+      Type: String
+      Value: !GetAtt DBCluster.Endpoint.Address
+
 
 
