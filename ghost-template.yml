@@ -97,6 +97,8 @@ Resources:
           Ref: "WebServerIamRole"
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn:
+      - WebServerIamPolicy
     Properties:
       ImageId:
         Ref: EC2AmiId
