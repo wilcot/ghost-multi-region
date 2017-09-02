@@ -82,7 +82,8 @@ Resources:
       Path: "/"
   WebServerIamPolicy: 
     Type: "AWS::IAM::Policy"
-    Properties: 
+    Properties:
+      PolicyName: GhostWebServerAccess
       PolicyDocument: 
         Version: "2012-10-17"
         Statement: 
