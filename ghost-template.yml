@@ -66,7 +66,34 @@ Resources:
       AvailabilityZones:
         -
           us-east-1a
-          
+  WebServerIamRole: 
+  Type: "AWS::IAM::Role"
+  Properties: 
+    AssumeRolePolicyDocument: 
+      Version: "2012-10-17"
+      Statement: 
+        - 
+          Effect: "Allow"
+          Principal: 
+            Service: 
+              - "ec2.amazonaws.com"
+          Action: 
+            - "sts:AssumeRole"
+    Path: "/"
+  WebServerIamPolicy: 
+  Type: "AWS::IAM::Policy"
+  Properties: 
+    PolicyDocument: 
+      Version: "2012-10-17"
+      Statement: 
+        - 
+          Effect: "Allow"
+          Action: 
+            - "SSM:*"
+          Resource: "*"
+    Roles: 
+      - 
+        Ref: "WebServerIamRole"
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -82,9 +109,12 @@ Resources:
           sudo apt-get -y install nginx
           sudo apt-get -y install unzip
           sudo apt-get -y install python
+          sudo apt-get -y install jq
           curl "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip"
           unzip awscli-bundle.zip
           sudo ./awscli-bundle/install -i /usr/local/aws -b /usr/local/bin/aws
+          INSTANCE_REGION=$(curl http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r ".region")
+          aws configure set region $INSTANCE_REGION
           sudo ufw allow 'Nginx Full'
           curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash
           sudo apt-get install -y nodejs
@@ -93,13 +123,14 @@ Resources:
           sudo chown ubuntu:ubuntu /var/www/ghost
           cd /var/www/ghost
           INSTANCE_PUBLIC_URL=$(curl http://169.254.169.254/latest/meta-data/public-hostname)
+          INSTANCE_REGION=$(curl http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r ".region")
           RDS_CLUSTER_ENDPOINT=$(aws ssm get-parameters --name GhostRdsEndpoint | jq -r '.Parameters[0].Value')
           RDS_CLUSTER_USERNAME=$(aws ssm get-parameters --name GhostRdsUserName | jq -r '.Parameters[0].Value')
-          RDS_CLUSTER_PASSWORD=$(aws ssm get-parameters --name GhostRdsPassword --with-decryption | jq -r '.Parameters[0].Value')GhostRdsPassword
-          ghost install --no-prompt --url "http://$INSTANCE_PUBLIC_URL" --dbhost RDS_CLUSTER_ENDPOINT --dbuser RDS_CLUSTER_USERNAME --dbpass RDS_CLUSTER_PASSWORD
+          RDS_CLUSTER_PASSWORD=$(aws ssm get-parameters --name GhostRdsPassword --with-decryption | jq -r '.Parameters[0].Value')
+          ghost install --no-prompt --url "http://$INSTANCE_PUBLIC_URL" --dbhost $RDS_CLUSTER_ENDPOINT --dbuser $RDS_CLUSTER_USERNAME --dbpass $RDS_CLUSTER_PASSWORD
       KeyName:
         Ref: KeyPair
-      IamInstanceProfile: ec2-role-full-access
+      IamInstanceProfile: !Ref WebServerIamRole
   WebServerSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
