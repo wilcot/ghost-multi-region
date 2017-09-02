@@ -95,15 +95,23 @@ Resources:
       Roles: 
         - 
           Ref: "WebServerIamRole"
-  LaunchConfiguration:
-    Type: AWS::AutoScaling::LaunchConfiguration
+  WebServerInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
     DependsOn:
       - WebServerIamPolicy
+    Properties: 
+      Roles:
+        - !Ref WebServerIamRole
+      InstanceProfileName: String
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       ImageId:
         Ref: EC2AmiId
       InstanceType:
         Ref: EC2InstanceType
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
       UserData:
         Fn::Base64: |
           #!/bin/bash
@@ -133,7 +141,7 @@ Resources:
           ghost install --no-prompt --url "http://$INSTANCE_PUBLIC_URL" --dbhost $RDS_CLUSTER_ENDPOINT --dbuser $RDS_CLUSTER_USERNAME --dbpass $RDS_CLUSTER_PASSWORD
       KeyName:
         Ref: KeyPair
-      IamInstanceProfile: !Ref WebServerIamRole
+      IamInstanceProfile: !Ref WebServerInstanceProfile
   WebServerSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
@@ -143,6 +151,11 @@ Resources:
           IpProtocol: "tcp"
           FromPort: 80
           ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        - 
+          IpProtocol: "tcp"
+          FromPort: 22
+          ToPort: 22
           CidrIp: "0.0.0.0/0"
   RDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
