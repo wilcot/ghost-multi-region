@@ -67,33 +67,33 @@ Resources:
         -
           us-east-1a
   WebServerIamRole: 
-  Type: "AWS::IAM::Role"
-  Properties: 
-    AssumeRolePolicyDocument: 
-      Version: "2012-10-17"
-      Statement: 
-        - 
-          Effect: "Allow"
-          Principal: 
-            Service: 
-              - "ec2.amazonaws.com"
-          Action: 
-            - "sts:AssumeRole"
-    Path: "/"
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
   WebServerIamPolicy: 
-  Type: "AWS::IAM::Policy"
-  Properties: 
-    PolicyDocument: 
-      Version: "2012-10-17"
-      Statement: 
+    Type: "AWS::IAM::Policy"
+    Properties: 
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Action: 
+              - "SSM:*"
+            Resource: "*"
+      Roles: 
         - 
-          Effect: "Allow"
-          Action: 
-            - "SSM:*"
-          Resource: "*"
-    Roles: 
-      - 
-        Ref: "WebServerIamRole"
+          Ref: "WebServerIamRole"
   LaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
