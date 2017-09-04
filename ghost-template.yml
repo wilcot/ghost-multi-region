@@ -23,6 +23,9 @@ Parameters:
   KeyPair: 
     Type: AWS::EC2::KeyPair::KeyName
     Description: Key Pair used for web server
+  DNSRecordName: 
+    Type: String
+    Description: DNS Record name for Route 53
 
 Resources:
   DBCluster:
@@ -66,6 +69,8 @@ Resources:
       AvailabilityZones:
         -
           us-east-1a
+      LoadBalancerNames:
+        - !Ref LoadBalancer
   WebServerIamRole: 
     Type: "AWS::IAM::Role"
     Properties: 
@@ -237,6 +242,27 @@ Resources:
       Role: arn:aws:iam::362142250279:role/lambda_test
       Runtime: python3.6
       Timeout: 20
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Listeners:
+        - LoadBalancerPort: 80
+          InstancePort: 80
+          Protocol: HTTP
+      AvailabilityZones:
+        - us-east-1a
+        - us-east-1b
+      CrossZone: true
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Ref DNSRecordName
+      Name: !Ref DNSRecordName
+      AliasTarget: 
+        DNSName: !GetAtt LoadBalancer.DNSName
+        EvaluateTargetHealth: True
+        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneNameID
+      Type: A
   RdsPasswordSsmParameter:
     Type: "Custom::RdsPassword"
     Properties:
