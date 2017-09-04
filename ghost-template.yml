@@ -250,7 +250,7 @@ Resources:
           InstancePort: 80
           Protocol: HTTP
         - LoadBalancerPort: 443
-          InstancePort: 443
+          InstancePort: 80
           Protocol: HTTPS
           SSLCertificateId: !Ref SslCertificate
       AvailabilityZones:
