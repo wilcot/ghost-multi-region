@@ -138,12 +138,12 @@ Resources:
           sudo mkdir -p /var/www/ghost
           sudo chown ubuntu:ubuntu /var/www/ghost
           cd /var/www/ghost
-          INSTANCE_PUBLIC_URL=$(curl http://169.254.169.254/latest/meta-data/public-hostname)
+          DNS_NAME=$(aws ssm get-parameters --name GhostDnsRecord | jq -r '.Parameters[0].Value')
           INSTANCE_REGION=$(curl http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r ".region")
           RDS_CLUSTER_ENDPOINT=$(aws ssm get-parameters --name GhostRdsEndpoint | jq -r '.Parameters[0].Value')
           RDS_CLUSTER_USERNAME=$(aws ssm get-parameters --name GhostRdsUserName | jq -r '.Parameters[0].Value')
           RDS_CLUSTER_PASSWORD=$(aws ssm get-parameters --name GhostRdsPassword --with-decryption | jq -r '.Parameters[0].Value')
-          ghost install --no-prompt --url "http://$INSTANCE_PUBLIC_URL" --dbhost $RDS_CLUSTER_ENDPOINT --dbuser $RDS_CLUSTER_USERNAME --dbpass $RDS_CLUSTER_PASSWORD
+          ghost install --no-prompt --url "http://$DNS_NAME" --dbhost $RDS_CLUSTER_ENDPOINT --dbuser $RDS_CLUSTER_USERNAME --dbpass $RDS_CLUSTER_PASSWORD
       KeyName:
         Ref: KeyPair
       IamInstanceProfile: !Ref WebServerInstanceProfile
@@ -249,6 +249,10 @@ Resources:
         - LoadBalancerPort: 80
           InstancePort: 80
           Protocol: HTTP
+        - LoadBalancerPort: 443
+          InstancePort: 443
+          Protocol: HTTPS
+          SSLCertificateId: !Ref SslCertificate
       AvailabilityZones:
         - us-east-1a
         - us-east-1b
@@ -256,8 +260,16 @@ Resources:
   DNSRecord:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneName: !Ref DNSRecordName
-      Name: !Ref DNSRecordName
+      HostedZoneName: 
+        Fn::Join: 
+        - ""
+        - - !Ref DNSRecordName
+          - "."
+      Name: 
+        Fn::Join: 
+        - ""
+        - - !Ref DNSRecordName
+          - "."
       AliasTarget: 
         DNSName: !GetAtt LoadBalancer.DNSName
         EvaluateTargetHealth: True
@@ -284,6 +296,16 @@ Resources:
       Description: "The connection string for the ghost blog database instance"
       Type: String
       Value: !GetAtt DBCluster.Endpoint.Address
-
+  DnsRecordSsmParameter:
+    Type: "AWS::SSM::Parameter"
+    Properties: 
+      Name: GhostDnsRecord
+      Description: "The the domain name for the ghost blog"
+      Type: String
+      Value: !Ref DNSRecordName
+  SslCertificate:
+    Type: "AWS::CertificateManager::Certificate"
+    Properties:
+      DomainName: !Ref DNSRecordName
 
 
