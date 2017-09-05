@@ -40,7 +40,6 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       Engine: aurora
-      DBInstanceIdentifier: ghost
       DBInstanceClass: db.t2.small
       DBClusterIdentifier: 
         Ref: DBCluster
