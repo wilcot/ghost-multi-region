@@ -8,10 +8,6 @@ Parameters:
     NoEcho: true
     MinLength: 8
     MaxLength: 41
-  DatabaseName:
-    Type: String
-    Default: "ghost"
-    Description: "Name of the database"
   EC2AmiId:
     Type: AWS::EC2::Image::Id
     Default: ami-cd0f5cb6
@@ -32,8 +28,6 @@ Resources:
     Type: "AWS::RDS::DBCluster"
     Properties:
       Engine: aurora
-      DatabaseName: 
-        Ref: DatabaseName
       MasterUsername:
         Ref: DBMasterUsername
       MasterUserPassword: 
@@ -156,7 +150,12 @@ Resources:
           IpProtocol: "tcp"
           FromPort: 80
           ToPort: 80
-          CidrIp: "0.0.0.0/0"
+          SourceSecurityGroupId: !GetAtt ElasticLoadBalancerSecurityGroup.GroupId
+        - 
+          IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !GetAtt ElasticLoadBalancerSecurityGroup.GroupId
         - 
           IpProtocol: "tcp"
           FromPort: 22
@@ -172,6 +171,21 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           SourceSecurityGroupId: !GetAtt WebServerSecurityGroup.GroupId
+  ElasticLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security group for Ghost Elastic Loadbalancer"
+      SecurityGroupIngress: 
+        -
+          IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        -
+          IpProtocol: "tcp"
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
   SSMSecureParameterLambda:
     Type: "AWS::Lambda::Function"
     Properties: 
@@ -257,6 +271,8 @@ Resources:
         - us-east-1a
         - us-east-1b
       CrossZone: true
+      SecurityGroups: 
+        - !GetAtt ElasticLoadBalancerSecurityGroup.GroupId
   DNSRecord:
     Type: AWS::Route53::RecordSet
     Properties:
