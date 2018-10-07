@@ -10,11 +10,11 @@ Parameters:
     MaxLength: 41
   EC2AmiId:
     Type: AWS::EC2::Image::Id
-    Default: ami-cd0f5cb6
+    Default: ami-0e6d2e8684d4ccb3e
     Description: "Amazon Machine Image ID"
   EC2InstanceType:
     Type: String
-    Default: t2.micro
+    Default: t3.micro
     Description: "Instance type for Ghost blog"
   KeyPair: 
     Type: AWS::EC2::KeyPair::KeyName
@@ -28,6 +28,7 @@ Resources:
     Type: "AWS::RDS::DBCluster"
     Properties:
       Engine: aurora
+      EngineMode: serverless
       MasterUsername:
         Ref: DBMasterUsername
       MasterUserPassword: 
@@ -36,18 +37,10 @@ Resources:
         -
           !GetAtt RDSSecurityGroup.GroupId
 
-  Database:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      Engine: aurora
-      DBInstanceClass: db.t2.small
-      DBClusterIdentifier: 
-        Ref: DBCluster
-
   AutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn:
-      - Database
+      - DBCluster
       - RdsPasswordSsmParameter
       - RdsEndpointSsmParameter
       - RdsUsernameSsmParameter
